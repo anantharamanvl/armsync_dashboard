@@ -1,0 +1,480 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ArmSync</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:#0b1220;color:#e5edf8;font-family:Arial,sans-serif;user-select:none;-webkit-user-select:none}
+.wrap{max-width:560px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;margin:4px 2px 16px}
+h1{font-size:21px;margin:0}
+.status{font-size:12px;color:#7dd3fc}
+.card{background:#172338;border:1px solid #263750;border-radius:16px;padding:16px;margin-bottom:14px}
+h2{font-size:14px;color:#a9bad1;margin:0 0 14px;font-weight:600}
+.row{display:flex;gap:10px;align-items:center}
+button{border:0;border-radius:11px;padding:13px;background:#30445f;color:white;font-size:15px;flex:1;touch-action:manipulation;cursor:pointer}
+button.on{background:#087eb5}
+button.stop{background:#b91c1c;font-weight:bold}
+button.drop{background:#065f3b}
+button:disabled{opacity:.4;cursor:not-allowed}
+.speed button{padding:10px 5px}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab{flex:1;padding:13px 4px;border-radius:12px;border:2px solid #263750;background:#172338;color:#a9bad1;font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:all .2s}
+.tab.active{border-color:#38bdf8;color:#38bdf8;background:#0c2035}
+.panel{display:none}
+.panel.active{display:block}
+/* ── Settings panel ── */
+.srow{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.srow label{font-size:14px;color:#c8d8ea}
+.sval{color:#38bdf8;font-weight:bold;min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
+input.srange{width:100%;height:28px;accent-color:#38bdf8;touch-action:pan-y;margin-bottom:10px}
+.ssave{background:#065f3b;padding:12px;font-size:15px;font-weight:700;width:100%;border-radius:11px;margin-top:4px}
+.ssave:active{background:#044028}
+.sgroup{border-top:1px solid #263750;padding-top:12px;margin-top:12px}
+
+/* ── Joystick ── */
+.joy-wrap{display:flex;justify-content:center;padding:5px 0 10px}
+#joy{width:min(76vw,280px);height:min(76vw,280px);max-width:280px;max-height:280px;border-radius:50%;position:relative;touch-action:none;
+  background:radial-gradient(circle,#304866 0 2px,transparent 3px),
+    linear-gradient(90deg,transparent 49.5%,#526780 49.5% 50.5%,transparent 50.5%),
+    linear-gradient(transparent 49.5%,#526780 49.5% 50.5%,transparent 50.5%),#223650;
+  border:2px solid #526780;box-shadow:inset 0 0 0 18px #1c2c43}
+#stick{position:absolute;width:27%;height:27%;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;
+  background:linear-gradient(145deg,#38bdf8,#0369a1);border:3px solid #bae6fd;box-shadow:0 5px 14px #0008;pointer-events:none;z-index:2}
+.axis{display:flex;justify-content:space-between;color:#8fa7c4;font-size:12px;margin-top:8px}
+
+/* ── Sliders ── */
+.control{margin:17px 0 5px}
+.control-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.control-head label{font-size:15px}
+.value{color:#7dd3fc;font-weight:bold;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;height:32px;accent-color:#38bdf8;touch-action:pan-y}
+.actions{display:flex;gap:10px}
+.hint{font-size:12px;color:#91a4bd;line-height:1.5;margin:10px 0 0}
+
+/* ── Auto mode stats ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.stat-box{background:#0e1e30;border-radius:10px;padding:14px;text-align:center}
+.stat-label{font-size:11px;color:#7a93b0;margin-bottom:5px}
+.stat-val{font-size:26px;font-weight:bold;color:#38bdf8;font-variant-numeric:tabular-nums}
+.stat-unit{font-size:11px;color:#7a93b0}
+.state-badge{display:inline-block;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;background:#263750;color:#a9bad1;transition:all .3s}
+.state-badge.detecting{background:#163320;color:#4ade80}
+.state-badge.picking{background:#12264a;color:#60a5fa}
+.state-badge.holding{background:#3b1f00;color:#fb923c}
+.state-badge.turning{background:#2a1545;color:#a78bfa}
+.state-badge.placing{background:#2d1b50;color:#c084fc}
+.state-badge.returning{background:#1e3a5f;color:#38bdf8}
+.dist-bar-bg{background:#0e1e30;border-radius:8px;height:14px;overflow:hidden;margin-top:10px}
+.dist-bar{height:100%;background:#38bdf8;border-radius:8px;transition:width .25s,background .25s;width:0%}
+.dist-bar.alert{background:#ef4444}
+.drop-label{font-size:13px;color:#7a93b0;text-align:center;margin-bottom:8px}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header>
+  <h1>⚙️ ArmSync</h1>
+  <span class="status" id="status">Connecting…</span>
+</header>
+
+<!-- Mode tabs -->
+<div class="tabs">
+  <div class="tab active" id="tab1" onclick="switchMode(1)">🕹️ Manual</div>
+  <div class="tab"        id="tab2" onclick="switchMode(2)">🤖 Auto</div>
+  <div class="tab"        id="tab3" onclick="switchMode(3)">⚙️ Settings</div>
+</div>
+
+<!-- Emergency stop — always visible -->
+<div class="card">
+  <div class="actions">
+    <button class="stop" onclick="doStop()">⛔ EMERGENCY STOP</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ MODE 1 PANEL ═══════════════════════════ -->
+<div class="panel active" id="panel1">
+
+  <div class="card">
+    <h2>XY JOYSTICK</h2>
+    <div class="joy-wrap">
+      <div id="joy"><div id="stick"></div></div>
+    </div>
+    <div class="axis">
+      <span>◀ LEFT</span>
+      <span>BASE ROTATION</span>
+      <span>RIGHT ▶</span>
+    </div>
+    <p class="hint">Up / Down → Elbow &nbsp;|&nbsp; Left / Right → Base rotation<br>Release the joystick to stop the base.</p>
+  </div>
+
+  <div class="card">
+    <h2>ARM POSITION</h2>
+    <div class="control">
+      <div class="control-head">
+        <label for="height">Height / Shoulder</label>
+        <span class="value" id="heightVal">90°</span>
+      </div>
+      <input id="height" type="range" min="20" max="160" value="90">
+    </div>
+    <div class="control">
+      <div class="control-head">
+        <label for="grip">Gripper</label>
+        <span class="value" id="gripVal">90°</span>
+      </div>
+      <input id="grip" type="range" min="30" max="120" value="90">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>MOTION SPEED</h2>
+    <div class="row speed" id="speed"></div>
+  </div>
+
+  <div class="card">
+    <div class="actions">
+      <button onclick="doHome()">🏠 HOME</button>
+    </div>
+  </div>
+
+</div><!-- /panel1 -->
+
+<!-- ═══════════════════════════ MODE 2 PANEL ═══════════════════════════ -->
+<div class="panel" id="panel2">
+
+  <div class="card">
+    <h2>SENSOR &amp; STATE</h2>
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-label">Distance</div>
+        <div class="stat-val" id="distVal">—</div>
+        <div class="stat-unit">cm</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Total Picks</div>
+        <div class="stat-val" id="pickCount">0</div>
+      </div>
+    </div>
+    <div class="dist-bar-bg">
+      <div class="dist-bar" id="distBar"></div>
+    </div>
+    <div style="margin-top:12px;text-align:center">
+      State: <span class="state-badge" id="autoState">IDLE</span>
+    </div>
+    <p class="hint" style="text-align:center;margin-top:8px">
+      Place an object within <strong>12 cm</strong> of the sensor to trigger automatic pickup.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>DROP DIRECTION</h2>
+    <p class="drop-label">Active only while arm is holding an object</p>
+    <div class="row" style="gap:8px">
+      <button class="drop" id="btnLeft"  onclick="doDrop(-1)" disabled>◀ Left 90°</button>
+      <button class="drop" id="btnFront" onclick="doDrop(0)"  disabled>⬇ In Front</button>
+      <button class="drop" id="btnRight" onclick="doDrop(1)"  disabled>Right 90° ▶</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🎯 BASE ALIGNMENT TO SENSOR</h2>
+    <p class="hint" style="margin:0 0 10px">Jog the base so the arm faces the ultrasonic sensor before picking.</p>
+    <div class="row" style="gap:8px">
+      <button onclick="nudgeBase(-1)">◀ Nudge Left</button>
+      <button onclick="nudgeBase(0)" class="stop" style="flex:0.6">Stop</button>
+      <button onclick="nudgeBase(1)">Nudge Right ▶</button>
+    </div>
+  </div>
+
+</div><!-- /panel2 -->
+
+<!-- ════════════════════════ SETTINGS PANEL ════════════════════════ -->
+<div class="panel" id="panel3">
+
+  <div class="card">
+    <h2>🦾 GRIPPER</h2>
+
+    <div class="srow"><label>Open angle</label><span class="sval" id="vgo">30°</span></div>
+    <input class="srange" type="range" id="sgo" min="20" max="120" value="30"
+      oninput="$('vgo').textContent=this.value+'°'">
+
+    <div class="srow"><label>Close angle (grip tight)</label><span class="sval" id="vgc">110°</span></div>
+    <input class="srange" type="range" id="sgc" min="20" max="160" value="110"
+      oninput="$('vgc').textContent=this.value+'°'">
+  </div>
+
+  <div class="card">
+    <h2>🏠 HOME POSITION</h2>
+
+    <div class="srow"><label>Shoulder</label><span class="sval" id="vhs">140°</span></div>
+    <input class="srange" type="range" id="shs" min="20" max="160" value="140"
+      oninput="$('vhs').textContent=this.value+'°'">
+
+    <div class="srow"><label>Elbow</label><span class="sval" id="vhe">45°</span></div>
+    <input class="srange" type="range" id="she" min="20" max="160" value="45"
+      oninput="$('vhe').textContent=this.value+'°'">
+
+    <div class="srow"><label>Gripper</label><span class="sval" id="vhg">75°</span></div>
+    <input class="srange" type="range" id="shg" min="20" max="120" value="75"
+      oninput="$('vhg').textContent=this.value+'°'">
+  </div>
+
+  <div class="card">
+    <h2>📡 AUTO DETECT</h2>
+
+    <div class="srow"><label>Trigger distance (cm)</label><span class="sval" id="vdc">12 cm</span></div>
+    <input class="srange" type="range" id="sdc" min="3" max="40" value="12"
+      oninput="$('vdc').textContent=this.value+' cm'">
+  </div>
+
+  <div class="card">
+    <h2>🤖 PICK POSITION</h2>
+    <p class="hint" style="margin:0 0 12px">Arm position used to reach down and grab the object.</p>
+
+    <div class="srow"><label>Shoulder (lean)</label><span class="sval" id="vps">120°</span></div>
+    <input class="srange" type="range" id="sps" min="20" max="160" value="120"
+      oninput="$('vps').textContent=this.value+'°'">
+
+    <div class="srow"><label>Elbow (lower = up, higher = down)</label><span class="sval" id="vpe">140°</span></div>
+    <input class="srange" type="range" id="spe" min="20" max="160" value="140"
+      oninput="$('vpe').textContent=this.value+'°'">
+  </div>
+
+  <div class="card">
+    <h2>📦 LIFT POSITION</h2>
+    <p class="hint" style="margin:0 0 12px">Arm position after grabbing — holds object high.</p>
+
+    <div class="srow"><label>Shoulder</label><span class="sval" id="vls">80°</span></div>
+    <input class="srange" type="range" id="sls" min="20" max="160" value="80"
+      oninput="$('vls').textContent=this.value+'°'">
+
+    <div class="srow"><label>Elbow</label><span class="sval" id="vle">60°</span></div>
+    <input class="srange" type="range" id="sle" min="20" max="160" value="60"
+      oninput="$('vle').textContent=this.value+'°'">
+  </div>
+
+  <div class="card">
+    <h2>🔄 BASE 90° TURN DURATION</h2>
+    <p class="hint" style="margin:0 0 12px">Time in milliseconds to turn 90° for drop and return back.</p>
+
+    <div class="srow"><label>Turn Time (ms)</label><span class="sval" id="vt90">1500 ms</span></div>
+    <input class="srange" type="range" id="st90" min="400" max="4000" step="50" value="1500"
+      oninput="$('vt90').textContent=this.value+' ms'">
+  </div>
+
+  <button class="ssave" onclick="saveSettings()">💾 APPLY SETTINGS</button>
+  <p class="hint" style="text-align:center;margin-top:10px">Settings apply instantly. Changes are lost on power-off.<br>Test with HOME or switch to Auto mode.</p>
+
+</div><!-- /panel3 -->
+
+</div><!-- /wrap -->
+
+<script>
+const $ = id => document.getElementById(id);
+const get = url => fetch(url, {cache:'no-store'}).catch(()=>{});
+
+let cfg = null;
+let baseDir = 0, keepAlive = null;
+let lastElbow = -999, lastElbowSend = 0;
+let curMode = 1;
+let pollTimer = null;
+let joystickActive = false;   // true only while finger/mouse is held down on joystick
+
+// ─── Mode switching ──────────────────────────────────────
+function switchMode(m) {
+  if (m === curMode) return;
+  curMode = m;
+  // Update tabs & panels (including settings tab 3)
+  [1,2,3].forEach(i => {
+    $('tab'  +i).className = 'tab'  + (m===i ? ' active' : '');
+    $('panel'+i).className = 'panel'+ (m===i ? ' active' : '');
+  });
+  // Stop joystick if leaving manual
+  releaseJoystick();
+  // Only tell firmware for modes 1 & 2 (settings = UI-only tab)
+  if (m === 1 || m === 2) get('/mode?m=' + m);
+  // Poll only in Mode 2
+  if (m === 2) startPoll(); else stopPoll();
+}
+
+// ─── Mode 2 polling ──────────────────────────────────────
+function startPoll() {
+  if (!pollTimer) pollTimer = setInterval(pollAuto, 500);
+}
+function stopPoll() {
+  clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+function pollAuto() {
+  fetch('/auto', {cache:'no-store'})
+    .then(r => r.json())
+    .then(d => {
+      const dist = parseFloat(d.dist);
+      $('distVal').textContent = (dist < 400) ? dist.toFixed(1) : '—';
+
+      // Distance bar: 0 cm → 100%, 50 cm → 0%
+      const pct = Math.max(0, Math.min(100, (1 - dist / 50) * 100));
+      const bar = $('distBar');
+      bar.style.width = pct + '%';
+      bar.className   = 'dist-bar' + (dist < 13 ? ' alert' : '');
+
+      $('pickCount').textContent = d.picks;
+
+      // State badge
+      const state = d.state;
+      const badge = $('autoState');
+      badge.textContent = state;
+      const cls = {
+        DETECTING:' detecting', PICKING:' picking',
+        HOLDING:' holding',    TURNING:' turning',
+        PLACING:' placing',    RETURNING:' returning'
+      }[state] || '';
+      badge.className = 'state-badge' + cls;
+
+      // Drop buttons: only enabled when HOLDING
+      const holding = (state === 'HOLDING');
+      ['btnLeft','btnFront','btnRight'].forEach(id => $(id).disabled = !holding);
+
+      $('status').textContent = 'Mode 2 · ' + state;
+    })
+    .catch(() => {
+      $('status').textContent = 'Connection lost';
+    });
+}
+
+function doDrop(dir) {
+  get('/drop?dir=' + dir);
+}
+
+function nudgeBase(dir) {
+  get('/nudgebase?dir=' + dir);
+}
+
+// ─── Manual mode ─────────────────────────────────────────
+function setJoint(i, a) {
+  get('/set?j=' + i + '&a=' + Math.round(a));
+}
+
+function stopBase() {
+  if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
+  if (baseDir !== 0) { baseDir = 0; get('/base?v=0'); }
+}
+
+function driveBase(dir) {
+  if (dir === baseDir) return;
+  if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
+  baseDir = dir;
+  if (dir === 0) { get('/base?v=0'); return; }
+  get('/base?v=' + dir);
+  keepAlive = setInterval(() => get('/base?v=' + dir), 150);
+}
+
+function updateJoystick(e) {
+  if (!joystickActive) return;   // ignore stray events after release
+  const rect   = $('joy').getBoundingClientRect();
+  const cx     = rect.left + rect.width  / 2;
+  const cy     = rect.top  + rect.height / 2;
+  const radius = rect.width * 0.34;
+  let dx = (e.clientX - cx) / radius;
+  let dy = (cy - e.clientY) / radius;
+  const mag = Math.hypot(dx, dy);
+  if (mag > 1) { dx /= mag; dy /= mag; }
+  $('stick').style.left = (50 + dx * 34) + '%';
+  $('stick').style.top  = (50 - dy * 34) + '%';
+  driveBase(Math.abs(dx) > 0.22 ? (dx > 0 ? 1 : -1) : 0);
+  if (!cfg) return;
+  const j     = cfg.joints[1];
+  // Negate dy so joystick UP = arm raises (lower angle) and DOWN = arm lowers
+  const elbow = Math.round(j.min + Math.max(0, Math.min(1, (-dy + 1) / 2)) * (j.max - j.min));
+  const now   = Date.now();
+  if (Math.abs(elbow - lastElbow) >= 2 && now - lastElbowSend > 65) {
+    lastElbow = elbow; lastElbowSend = now;
+    setJoint(1, elbow);
+    $('status').textContent = 'Elbow ' + elbow + '°';
+  }
+}
+
+function releaseJoystick() {
+  joystickActive = false;
+  lastElbow = -999;             // reset so next drag starts fresh
+  stopBase();
+  get('/hold?j=1');             // freeze elbow at its current position
+  $('stick').style.left = '50%';
+  $('stick').style.top  = '50%';
+}
+
+function buildUI(c) {
+  ['Slow','Medium','Fast'].forEach((name, i) => {
+    const b = document.createElement('button');
+    b.textContent = name; b.id = 's' + i;
+    b.onclick = () => { get('/speed?l=' + i); markSpeed(i); };
+    $('speed').appendChild(b);
+  });
+  $('height').min = c.joints[0].min; $('height').max = c.joints[0].max;
+  $('grip').min   = c.joints[2].min; $('grip').max   = c.joints[2].max;
+  $('height').value = c.joints[0].pos;
+  $('grip').value   = c.joints[2].pos;
+  $('height').oninput = () => { $('heightVal').textContent = $('height').value + '°'; setJoint(0, $('height').value); };
+  $('grip').oninput   = () => { $('gripVal').textContent   = $('grip').value   + '°'; setJoint(2, $('grip').value);   };
+  const joy = $('joy');
+  joy.addEventListener('pointerdown', e => { e.preventDefault(); joystickActive = true; joy.setPointerCapture(e.pointerId); updateJoystick(e); });
+  joy.addEventListener('pointermove', e => { if (joy.hasPointerCapture(e.pointerId)) updateJoystick(e); });
+  ['pointerup','pointercancel','lostpointercapture'].forEach(ev => joy.addEventListener(ev, releaseJoystick));
+}
+
+function markSpeed(l) {
+  for (let i = 0; i < 3; i++) $('s' + i).className = (i === l ? 'on' : '');
+}
+
+// ─── Settings ─────────────────────────────────────────────
+function saveSettings() {
+  const p = new URLSearchParams({
+    go:  $('sgo').value,   // gripper open
+    gc:  $('sgc').value,   // gripper close
+    hs:  $('shs').value,   // home shoulder
+    he:  $('she').value,   // home elbow
+    hg:  $('shg').value,   // home gripper
+    dc:  $('sdc').value,   // detect cm
+    ps:  $('sps').value,   // pick shoulder
+    pe:  $('spe').value,   // pick elbow
+    ls:  $('sls').value,   // lift shoulder
+    le:  $('sle').value,   // lift elbow
+    t90: $('st90').value   // 90° turn ms
+  });
+  get('/settings?' + p.toString())
+    .then(() => { $('status').textContent = '✔ Settings applied'; });
+}
+
+function doHome() { releaseJoystick(); get('/home').then(() => setTimeout(load, 700)); }
+
+function doStop() {
+  releaseJoystick();
+  get('/stop').then(() => setTimeout(() => { load(); if (curMode===2) pollAuto(); }, 350));
+}
+
+function load() {
+  fetch('/cfg', {cache:'no-store'})
+    .then(r => r.json())
+    .then(c => {
+      cfg = c;
+      if (!$('s0')) buildUI(c);
+      markSpeed(c.speed);
+      $('height').value = c.joints[0].pos; $('heightVal').textContent = c.joints[0].pos + '°';
+      $('grip').value   = c.joints[2].pos; $('gripVal').textContent   = c.joints[2].pos + '°';
+      $('status').textContent = 'Connected';
+    })
+    .catch(() => { $('status').textContent = 'Connection lost'; setTimeout(load, 1500); });
+}
+
+load();
+</script>
+</body>
+</html>
